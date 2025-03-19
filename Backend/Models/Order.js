@@ -12,6 +12,18 @@ const Order = new mongoose.schema ({
         ref : "books", 
 
     },
+
+
+    status : {
+        type : String,
+        default : "order placed",
+        enum : ["order placed", "out for delivery", "Deliverd", "Cancel"]
+    },
      
 
-})
+},
+{timestemps : true}
+
+);
+
+module.exports = mongoose.model("order", Order); 
