@@ -27,11 +27,12 @@ const user = new mongoose.Schema(
 
     avater: {
       type: String,
-      default: <i class="fi fi-ss-user"></i>,
+      default : "https://cdn-icons-png.flaticon.com/128/3177/3177440.png",
+      
     },
 
     role: {
-      type: string,
+      type: String,
       default: "user",
       enum: ["user", "admin"],
     },

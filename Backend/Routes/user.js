@@ -1,10 +1,11 @@
 const express = require ("express");
 const User = require("../Models/User");
 const Router = express.Router();
+const bcrypt = require("bcryptjs");
 
 // sign-up functionality 
 
-Router.post ("/sigin-up", async (req, res) => {
+Router.post ("/sign-up", async (req, res) => {
 
     try {
      const {username, email, password, address} = req.body;
@@ -18,7 +19,7 @@ Router.post ("/sigin-up", async (req, res) => {
 
      // Check if User is already exist or not
      
-    const existUsername = await User.find({username : username});
+    const existUsername = await User.findOne({username : username});
      if(existUsername) {
         return  res
         .status(400)
@@ -26,7 +27,7 @@ Router.post ("/sigin-up", async (req, res) => {
      }
      
     // check email is already exist
-    const existingEmail = await User.find({email : email});
+    const existingEmail = await User.findOne({email : email});
     if(existingEmail){
         return res
         .status(400)
@@ -40,11 +41,12 @@ Router.post ("/sigin-up", async (req, res) => {
         .json( {message :  "password should be six character"});
      }
     
+     const hashPassword =  await bcrypt.hash(password, 10);
     // create a new user
     const newuser = new User ({
         username: username,
         email : email,
-        password : password,
+        password : hashPassword,
         address : address,
     });
     await newuser.save();
@@ -60,6 +62,34 @@ Router.post ("/sigin-up", async (req, res) => {
     }
 })
 
+// sign-IN
 
+Router.post("/sign-in", async (req, res) => {
+    try{
+      
+    const {username, password} = req.body;  // take from input
+    
+    const presentUsername = await User.findOne({username});  // check present or not
+    if(!presentUsername){
+
+        res.status(400).json({message : "Invalid UserName"});
+    }
+
+    await bcrypt.compare(password, presentUsername.password, (err, data) => {  // compare with exitperson's password
+         
+        if(data){
+            res.status(200).json({message : "User Login SuccessFully"});
+        } else {
+            res.status(400).json({message : "Invalid password"});
+        }
+    }) 
+
+    } 
+    
+    catch (err) {
+
+        res.status(500).json(`message of an error : ${err}`);
+    }
+})
 
 module.exports = Router;
