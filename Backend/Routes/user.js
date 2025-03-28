@@ -2,6 +2,7 @@ const express = require ("express");
 const User = require("../Models/User");
 const Router = express.Router();
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 // sign-up functionality 
 
@@ -72,15 +73,27 @@ Router.post("/sign-in", async (req, res) => {
     const presentUsername = await User.findOne({username});  // check present or not
     if(!presentUsername){
 
-        res.status(400).json({message : "Invalid UserName"});
+        res.status(400).json({message : "Invalid Credentials"});
     }
 
     await bcrypt.compare(password, presentUsername.password, (err, data) => {  // compare with exitperson's password
          
         if(data){
-            res.status(200).json({message : "User Login SuccessFully"});
+            const authclaims = [
+                {name : presentUsername.username},
+                {address :presentUsername.address}
+            ];
+
+            const token  = jwt.sign({authclaims}, "kitab123", {
+                expiresIn: "30d",
+            });
+            res.status(200).json(
+             {id: presentUsername._id,
+             address : presentUsername.address,
+             token : token,
+            });
         } else {
-            res.status(400).json({message : "Invalid password"});
+            res.status(400).json({message : "Invalid Credentials"});
         }
     }) 
 
