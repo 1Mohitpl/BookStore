@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken");
 async function LogIn(req, res) {
     try{
       
-        const {username, password} = req.body;  // take from input
+        const {username, password} = req.body;  // take from client
         
         const presentUsername = await User.findOne({username});  // check present or not
         if(!presentUsername){
