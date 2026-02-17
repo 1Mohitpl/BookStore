@@ -49,7 +49,7 @@ async function SignUp(req, res) {
        await newuser.save();
        return res
        .status(200)
-       .json({message : "sign in succuessfully"});
+       .json({message : "Sign Up Succuessfully"});
    
    
    

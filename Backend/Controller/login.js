@@ -2,6 +2,7 @@ const User = require ("../Models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const express = require("express");
+const private_key = require("dotenv")
 const app = express();
 
 async function LogIn(req, res) {
@@ -20,15 +21,17 @@ async function LogIn(req, res) {
             if(data){
                 const authclaims = [
                     {name : presentUsername.username},
-                    {address :presentUsername.address}
+                    {address :presentUsername.address},
+                    {role : presentUsername.role}
                 ];
     
-                const token  = jwt.sign({authclaims}, "kitab123", {
+                const token  = jwt.sign({authclaims}, process.env.private_key, {
                     expiresIn: "30d",
                 });
                 res.status(200).json(
                  {id: presentUsername._id,
                  address : presentUsername.address,
+                 role: presentUsername.role,
                  token : token,
                 });
             } else {

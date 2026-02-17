@@ -16,7 +16,7 @@ const userModel = new mongoose.Schema(
       validate(value){
          if(!validator.isEmail(value)){
             throw new Error("invalid email id")
-         }
+         } 
       }
     },
 
@@ -39,6 +39,7 @@ const userModel = new mongoose.Schema(
 
     role: {
       type: String,
+      default: "user",
       enum: ["user", "admin"],
     },
 
