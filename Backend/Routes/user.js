@@ -1,16 +1,17 @@
-const express = require ("express");
-const User = require("../Models/User")
-const Router = express.Router();
+// const express = require ("express");
+// const User = require("../Models/User")
+// const Router = express.Router();
+// const auth  = require("../Middleware/userauth")
 
-const { SignUp,  LogIn } = require("../controller");
+// const { SignUp,  LogIn } = require("../controller");
 
 
-// sign-up functionality 
+// // sign-up functionality 
 
-Router.post ("/sign-up", SignUp)
+// Router.post ("/sign-up", auth, SignUp)
 
-// sign-IN
+// // sign-IN
 
-Router.post("/sign-in", LogIn)
+// Router.post("/sign-in", auth,  LogIn)
 
-module.exports = Router;
+// module.exports = Router;

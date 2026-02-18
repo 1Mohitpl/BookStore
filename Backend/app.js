@@ -1,12 +1,16 @@
-const express = require("express");
 require('dotenv').config();
+const express = require("express");
+
 const app = express();
 const {serverConfig} = require("./Connect");
 const {connectDB} = require("./Connect")
 const newUser = require("./Routes/user");
+const { siginupRouter, loginRouter, alluser } = require("./Routes");
 app.use(express.json());
 
-app.use("/user1",newUser);
+app.use("/", siginupRouter);
+app.use("/", loginRouter);
+app.use("/", alluser);
 
 //connections
 connectDB()
