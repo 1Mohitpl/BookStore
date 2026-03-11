@@ -3,11 +3,11 @@ const express = require("express");
 const Book = require("../Models/Book");
 const User = require("../Models/User");
 
-const addBookrouter = express.Router();
+const router = express.Router();
+const updatebookrouter = express.Router();
 
-addBookrouter.post("/addbook", authentication, async (req, res) => {
+router.post("/addbook", authentication, async (req, res) => {
   try {
-
     const { id } = req.headers;
 
     // find user
@@ -36,12 +36,36 @@ addBookrouter.post("/addbook", authentication, async (req, res) => {
     await book.save();
 
     res.status(200).json({ message: "Book added successfully" });
-
   } catch (e) {
     console.log(e);
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-module.exports = addBookrouter;
+router.put("/updatebook", authentication, async (req, res) => {
+  try {
+    // first take book from headers
+    const { bookid } = req.headers;
 
+    // find the book by book id
+    const foundbookId = await Book.findByIdAndUpdate(bookid, {
+      url: req.body.url,
+      title: req.body.title,
+      author: req.body.author,
+      price: req.body.price,
+      desc: req.body.desc,
+      language: req.body.language,
+    });
+
+    return res.status(200).json({
+      message: "Book Updated Successfully!",
+    });
+  } catch (e) {
+    console.log(e);
+    return res.status(500).json({
+      message: "an error occurred",
+    });
+  }
+});
+
+module.exports = router;
