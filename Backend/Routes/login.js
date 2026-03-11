@@ -37,6 +37,7 @@ loginRouter.post("/sign-in", async (req, res) => {
                 address: presentUsername.address,
                 role: presentUsername.role,
                 token: token,
+                message: "Successfully Logged In"
             });
         } else {
             return res.status(400).json({ message: "Invalid Credentials" });
