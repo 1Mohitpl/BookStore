@@ -68,4 +68,24 @@ router.put("/updatebook", authentication, async (req, res) => {
   }
 });
 
+
+
+router.delete("/deletbook", authentication, async (req, res) => {
+     try {
+        const {bookid} = req.headers;
+        await Book.findByIdAndDelete(bookid);
+        return res.status(200).json({
+          message :  "Book Deleted Successfully!",
+        });
+
+     } catch (e){
+        return res.status(500).json({
+      message: "an error occurred",})
+      
+    }
+  
+
+
+});
+
 module.exports = router;

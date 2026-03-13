@@ -5,7 +5,7 @@ const app = express();
 const {serverConfig} = require("./Connect");
 const {connectDB} = require("./Connect")
 const newUser = require("./Routes/user");
-const { siginupRouter, loginRouter, alluser, addBookrouter, updatebookrouter } = require("./Routes");
+const { siginupRouter, loginRouter, alluser, addBookrouter, updatebookrouter, deletbook } = require("./Routes");
 app.use(express.json());
 
 app.use("/", siginupRouter);
@@ -13,6 +13,7 @@ app.use("/", loginRouter);
 app.use("/", alluser);
 app.use("/", addBookrouter);
 app.use("/", updatebookrouter);
+app.use("/", deletbook);
 //connections
 connectDB()
     .then(() => {
