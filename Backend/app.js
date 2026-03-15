@@ -5,15 +5,19 @@ const app = express();
 const {serverConfig} = require("./Connect");
 const {connectDB} = require("./Connect")
 const newUser = require("./Routes/user");
-const { siginupRouter, loginRouter, alluser, addBookrouter, updatebookrouter, deletbook } = require("./Routes");
+const { siginupRouter, loginRouter, alluser, addBookrouter, updatebookrouter, deletbook, getallbooks } = require("./Routes");
+const bookRoutes = require("./Routes/book");
 app.use(express.json());
+
+app.get("/", (req, res) => {
+    res.send("Hello, server is ready 🚀");
+});
+
 
 app.use("/", siginupRouter);
 app.use("/", loginRouter);
 app.use("/", alluser);
-app.use("/", addBookrouter);
-app.use("/", updatebookrouter);
-app.use("/", deletbook);
+app.use("/", bookRoutes);
 //connections
 connectDB()
     .then(() => {
@@ -26,9 +30,6 @@ connectDB()
         console.log(`error : ${err}`);
     })
 
-app.get("/", (req, res) => {
-    res.send("Hello, server is ready 🚀");
-});
 
 
 
