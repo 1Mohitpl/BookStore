@@ -6,6 +6,8 @@ const User = require("../Models/User");
 const { authentication } = require("../Middleware/userauth");
 
 
+// add books
+
 router.post("/books", authentication, async (req, res) => {
   try {
 
@@ -48,6 +50,7 @@ router.post("/books", authentication, async (req, res) => {
 });
 
 
+// update book
 router.put("/books/:id", authentication, async (req, res) => {
 
   try {
@@ -87,7 +90,7 @@ router.put("/books/:id", authentication, async (req, res) => {
 
 });
 
-
+// delete book
 router.delete("/books/:id", authentication, async (req, res) => {
 
   try {
@@ -119,7 +122,28 @@ router.delete("/books/:id", authentication, async (req, res) => {
   }
 
 });
+router.get("/books/recent", async (req, res) => {
+  try {
 
+    const books = await Book.find()
+      .sort({ createdAt: -1 }) // newest first
+      .limit(4);
+
+    res.status(200).json({
+      message: "Recent books fetched successfully",
+      data: books
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    res.status(500).json({
+      message: "Server error"
+    });
+
+  }
+});
 
 // Get ALL the books
 router.get("/books", async (req, res) => {
@@ -276,5 +300,9 @@ router.get("/books/top/rated", async (req, res) => {
   }
 
 });
+
+
+
+
 
 module.exports = router;
