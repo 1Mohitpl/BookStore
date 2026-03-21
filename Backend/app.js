@@ -7,6 +7,7 @@ const {connectDB} = require("./Connect")
 const newUser = require("./Routes/user");
 const { siginupRouter, loginRouter, alluser, addBookrouter, updatebookrouter, deletbook, getallbooks } = require("./Routes");
 const bookRoutes = require("./Routes/book");
+const cartRoutes = require("./Routes/Cart");
 app.use(express.json());
 
 app.get("/", (req, res) => {
@@ -18,6 +19,7 @@ app.use("/", siginupRouter);
 app.use("/", loginRouter);
 app.use("/", alluser);
 app.use("/", bookRoutes);
+app.use("/", cartRoutes);
 //connections
 connectDB()
     .then(() => {

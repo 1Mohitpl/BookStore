@@ -384,7 +384,7 @@ router.get("/user/favorites", authentication, async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
 
-    const user = await User.findById(userId).populate("favourites");
+    const user = await User.findById(userId).populate("favourites");  // populate means refers to whole data from books
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
