@@ -302,7 +302,104 @@ router.get("/books/top/rated", async (req, res) => {
 });
 
 
+// ADD TO FAVORITES
+router.post("/books/favorite", authentication, async (req, res) => {
+  try {
+    // Accept _id, id, or bookId from request body
+    const bookId = req.body._id || req.body.id || req.body.bookId;
+    // Accept _id or id from JWT user
+    const userId = req.user._id || req.user.id;
+
+    if (!bookId) {
+      return res.status(400).json({ message: "Book ID is required. Send it as _id, id, or bookId" });
+    }
+    
+    if (!userId) {
+      return res.status(400).json({ message: "User ID not found in token" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const book = await Book.findById(bookId);
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+
+    // Convert to string for reliable comparison
+    if (user.favourites.map(id => id.toString()).includes(book._id.toString())) {
+      return res.status(400).json({ message: "Book already in favorites" });
+    }
+
+    user.favourites.push(book._id);
+    await user.save();
+
+    res.status(200).json({ message: "Book added to favorites" });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+    
+     
 
 
+
+// REMOVE FROM FAVORITES
+router.delete("/books/:id/favorite", authentication, async (req, res) => {
+  try {
+    // Accept _id or id from JWT user
+    const userId = req.user._id || req.user.id;
+    
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.favourites = user.favourites.filter(
+      (bookId) => bookId.toString() !== req.params.id
+    );
+
+    await user.save();
+
+    res.status(200).json({
+      message: "Book removed from favorites"
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error"
+    });
+  }
+});
+
+
+// GET USER'S FAVORITE BOOKS
+router.get("/user/favorites", authentication, async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+
+    const user = await User.findById(userId).populate("favourites");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({
+      message: "Favorites fetched successfully",
+      count: user.favourites.length,
+      data: user.favourites
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 module.exports = router;

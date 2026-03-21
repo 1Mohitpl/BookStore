@@ -1,4 +1,3 @@
-// Models/Book.js
 const mongoose = require("mongoose");
 
 const reviewSchema = new mongoose.Schema(
@@ -18,8 +17,19 @@ const Book = new mongoose.Schema(
     price:    { type: Number, required: true },
     desc:     { type: String, required: true },
     language: { type: String, required: true },
-    averageRating: { type: Number, default: 0 },  // ← new
-    reviews:  [reviewSchema],                      // ← new
+
+    averageRating: { type: Number, default: 0 },
+    reviews:  [reviewSchema],
+
+    favorites: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+      }
+    ],
+
+
+
   },
   { timestamps: true }
 );
