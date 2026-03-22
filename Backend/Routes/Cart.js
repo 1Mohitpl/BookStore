@@ -103,6 +103,56 @@ router.get("/cart", authentication, async (req, res) => {
   }
 });
 
+// UPDATE ITEM QUANTITY IN CART
+router.put("/cart/:bookId", authentication, async (req, res) => {
+  try {
+    const { bookId } = req.params;
+    const { quantity } = req.body;
+    const userId = req.user._id || req.user.id;
+
+    if (quantity == null) {
+      return res.status(400).json({ message: "Quantity is required" });
+    }
+
+    const itemQuantity = parseInt(quantity, 10);
+    if (Number.isNaN(itemQuantity) || itemQuantity < 1 || itemQuantity > 99) {
+      return res.status(400).json({ message: "Quantity must be a number between 1 and 99" });
+    }
+
+    const cart = await Cart.findOne({ user: userId });
+    if (!cart) {
+      return res.status(404).json({ message: "Cart not found" });
+    }
+
+    const itemIndex = cart.items.findIndex(
+      item => item.book.toString() === bookId
+    );
+    if (itemIndex === -1) {
+      return res.status(404).json({ message: "Item not found in cart" });
+    }
+
+    cart.items[itemIndex].quantity = itemQuantity;
+
+    // Optionally, remove item when set to 0 (if behavior changes)
+    // if (itemQuantity === 0) cart.items.splice(itemIndex, 1);
+
+    await cart.save();
+
+    res.status(200).json({
+      message: "Cart item quantity updated successfully",
+      cart: {
+        items: cart.items,
+        itemCount: cart.items.length,
+        totalPrice: cart.totalPrice
+      }
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // REMOVE ITEM FROM CART
 router.delete("/cart/:bookId", authentication, async (req, res) => {
   try {
