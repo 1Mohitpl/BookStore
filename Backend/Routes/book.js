@@ -3,25 +3,16 @@ const router = express.Router();
 
 const Book = require("../Models/Book");
 const User = require("../Models/User");
-const { authentication } = require("../Middleware/userauth");
+const { authentication, requireAdmin, getCurrentUserId } = require("../Middleware/userauth");
 
 
 // add books
 
-router.post("/books", authentication, async (req, res) => {
+router.post("/books", authentication, requireAdmin, async (req, res) => {
   try {
+    const { url, title, author, price, desc, language, category } = req.body;
 
-    const user = await User.findById(req.user.id);
-
-    if (!user || user.role !== "admin") {
-      return res.status(403).json({
-        message: "Only admin can add books"
-      });
-    }
-
-    const { url, title, author, price, desc, language } = req.body;
-
-    if (!url || !title || !author || !price || !desc || !language) {
+    if (!url || !title || !author || !price || !desc || !language || !category) {
       return res.status(400).json({
         message: "All fields are required"
       });
@@ -33,7 +24,8 @@ router.post("/books", authentication, async (req, res) => {
       author,
       price,
       desc,
-      language
+      language,
+      category
     });
 
     await book.save();
@@ -51,25 +43,15 @@ router.post("/books", authentication, async (req, res) => {
 
 
 // update book
-router.put("/books/:id", authentication, async (req, res) => {
-
+router.put("/books/:id", authentication, requireAdmin, async (req, res) => {
   try {
-
-    const user = await User.findById(req.user.id);
-
-    if (!user || user.role !== "admin") {
-      return res.status(403).json({
-        message: "Only admin can update books"
-      });
-    }
-
     const { id } = req.params;
 
-    const { url, title, author, price, desc, language } = req.body;
+    const { url, title, author, price, desc, language, category } = req.body;
 
     const book = await Book.findByIdAndUpdate(
       id,
-      { url, title, author, price, desc, language },
+      { url, title, author, price, desc, language, category },
       { new: true }
     );
 
@@ -91,18 +73,8 @@ router.put("/books/:id", authentication, async (req, res) => {
 });
 
 // delete book
-router.delete("/books/:id", authentication, async (req, res) => {
-
+router.delete("/books/:id", authentication, requireAdmin, async (req, res) => {
   try {
-
-    const user = await User.findById(req.user.id);
-
-    if (!user || user.role !== "admin") {
-      return res.status(403).json({
-        message: "Only admin can delete books"
-      });
-    }
-
     const { id } = req.params;
 
     const book = await Book.findByIdAndDelete(id);
@@ -152,18 +124,49 @@ router.get("/books", async (req, res) => {
 
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(50, parseInt(req.query.limit) || 10);
-
     const skip = (page - 1) * limit;
 
     const sortField = req.query.sort || "createdAt";
     const order = req.query.order === "asc" ? 1 : -1;
 
-    const books = await Book.find()
+    // filtering
+    const { category, minPrice, maxPrice, q, language } = req.query;
+    const filter = {};
+
+    if (category) filter.category = category;
+    if (language) filter.language = language;
+
+    const priceFilter = {};
+    if (minPrice != null && !Number.isNaN(parseFloat(minPrice))) {
+      priceFilter.$gte = parseFloat(minPrice);
+    }
+    if (maxPrice != null && !Number.isNaN(parseFloat(maxPrice))) {
+      priceFilter.$lte = parseFloat(maxPrice);
+    }
+    if (Object.keys(priceFilter).length) {
+      filter.price = priceFilter;
+    }
+
+    if (q) {
+      filter.$or = [
+        { title: { $regex: q, $options: "i" } },
+        { author: { $regex: q, $options: "i" } },
+        { desc: { $regex: q, $options: "i" } }
+      ];
+    }
+
+    let books = await Book.find(filter)
       .sort({ [sortField]: order })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean();
 
-    const total = await Book.countDocuments();
+    // if popularity sorting requested, sort by favorites count in-memory as fallback
+    if (sortField === "popularity") {
+      books = books.sort((a, b) => (b.favorites?.length || 0) - (a.favorites?.length || 0));
+    }
+
+    const total = await Book.countDocuments(filter);
 
     res.json({
       data: books,
@@ -182,10 +185,79 @@ router.get("/books", async (req, res) => {
 
 });
 
+// GET FLASH SALE BOOKS
+router.get("/books/flash-sale", async (req, res) => {
+  try {
+    const now = new Date();
+    const books = await Book.find({
+      salePrice: { $exists: true, $ne: null },
+      saleStart: { $lte: now },
+      saleEnd: { $gte: now }
+    });
+
+    res.status(200).json({
+      message: "Flash sale books fetched successfully",
+      count: books.length,
+      data: books
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// GET USER RECOMMENDATIONS
+router.get("/books/recommendations", authentication, async (req, res) => {
+  try {
+    const userId = getCurrentUserId(req);
+    const user = await User.findById(userId).populate("favourites");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const categories = new Set();
+    user.favourites.forEach((b) => categories.add(b.category));
+
+    if (Array.isArray(user.recentlyViewed) && user.recentlyViewed.length) {
+      const recentlyViewedBooks = await Book.find({ _id: { $in: user.recentlyViewed } }).select("category").lean();
+      recentlyViewedBooks.forEach((b) => categories.add(b.category));
+    }
+
+    const excludedBookIds = user.favourites.map((b) => b._id);
+
+    const recBooks = await Book.find({
+      category: { $in: Array.from(categories) },
+      _id: { $nin: excludedBookIds }
+    })
+      .sort({ averageRating: -1, createdAt: -1 })
+      .limit(10);
+
+    res.status(200).json({
+      message: "Personalized recommendations",
+      data: recBooks
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// GET ALL CATEGORIES
+router.get("/books/categories", async (req, res) => {
+  try {
+    const categories = await Book.distinct("category");
+    res.status(200).json({
+      message: "Categories fetched successfully",
+      categories
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 
 // GET SINGLE BOOK
 
-router.get("/books/:id", async (req, res) => {
+router.get("/books/:id", authentication, async (req, res) => {
 
   try {
 
@@ -196,6 +268,19 @@ router.get("/books/:id", async (req, res) => {
       return res.status(404).json({
         message: "Book not found"
       });
+    }
+
+    // Track recently viewed books for user (atomic, avoids full-document hit)
+    const userId = getCurrentUserId(req);
+    if (userId) {
+      await User.findByIdAndUpdate(
+        userId,
+        {
+          $pull: { recentlyViewed: book._id },
+          $push: { recentlyViewed: { $each: [book._id], $position: 0, $slice: 10 } }
+        },
+        { new: true }
+      );
     }
 
     res.json(book);
@@ -245,8 +330,9 @@ router.post("/books/:id/review", authentication, async (req, res) => {
       });
     }
 
+    const userId = getCurrentUserId(req);
     const alreadyReviewed = book.reviews.find(
-      r => r.user.toString() === req.user.id
+      r => r.user.toString() === userId
     );
 
     if (alreadyReviewed) {
@@ -256,7 +342,7 @@ router.post("/books/:id/review", authentication, async (req, res) => {
     }
 
     const review = {
-      user: req.user.id,
+      user: userId,
       rating,
       comment
     };
@@ -302,42 +388,99 @@ router.get("/books/top/rated", async (req, res) => {
 });
 
 
+// ADD TO WISHLIST
+router.post("/books/:id/wishlist", authentication, async (req, res) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { id } = req.params;
+    const bookExists = await Book.exists({ _id: id });
+    if (!bookExists) return res.status(404).json({ message: "Book not found" });
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $addToSet: { wishlist: id } },
+      { new: true }
+    );
+
+    if (!updatedUser) return res.status(404).json({ message: "User not found" });
+
+    res.status(200).json({
+      message: updatedUser.wishlist.map(String).includes(String(id)) ? "Added to wishlist" : "Already in wishlist"
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// REMOVE FROM WISHLIST
+router.delete("/books/:id/wishlist", authentication, async (req, res) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { id } = req.params;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $pull: { wishlist: id } },
+      { new: true }
+    );
+
+    if (!updatedUser) return res.status(404).json({ message: "User not found" });
+
+    res.status(200).json({ message: "Removed from wishlist" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// GET USER WISHLIST
+router.get("/user/wishlist", authentication, async (req, res) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const user = await User.findById(userId).populate("wishlist");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.status(200).json({ message: "Wishlist fetched", data: user.wishlist });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // ADD TO FAVORITES
 router.post("/books/favorite", authentication, async (req, res) => {
   try {
-    // Accept _id, id, or bookId from request body
     const bookId = req.body._id || req.body.id || req.body.bookId;
-    // Accept _id or id from JWT user
-    const userId = req.user._id || req.user.id;
+    const userId = getCurrentUserId(req);
 
     if (!bookId) {
       return res.status(400).json({ message: "Book ID is required. Send it as _id, id, or bookId" });
     }
-    
+
     if (!userId) {
-      return res.status(400).json({ message: "User ID not found in token" });
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    const bookExists = await Book.exists({ _id: bookId });
+    if (!bookExists) return res.status(404).json({ message: "Book not found" });
 
-    const book = await Book.findById(bookId);
-    if (!book) {
-      return res.status(404).json({ message: "Book not found" });
-    }
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $addToSet: { favourites: bookId } },
+      { new: true }
+    );
 
-    // Convert to string for reliable comparison
-    if (user.favourites.map(id => id.toString()).includes(book._id.toString())) {
-      return res.status(400).json({ message: "Book already in favorites" });
-    }
+    if (!updatedUser) return res.status(404).json({ message: "User not found" });
 
-    user.favourites.push(book._id);
-    await user.save();
-
-    res.status(200).json({ message: "Book added to favorites" });
-
+    const inFavorites = updatedUser.favourites.map(String).includes(String(bookId));
+    return res.status(200).json({ message: inFavorites ? "Book added to favorites" : "Book already in favorites" });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
@@ -352,29 +495,22 @@ router.post("/books/favorite", authentication, async (req, res) => {
 // REMOVE FROM FAVORITES
 router.delete("/books/:id/favorite", authentication, async (req, res) => {
   try {
-    // Accept _id or id from JWT user
-    const userId = req.user._id || req.user.id;
-    
-    const user = await User.findById(userId);
-    
-    if (!user) {
+    const userId = getCurrentUserId(req);
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $pull: { favourites: req.params.id } },
+      { new: true }
+    );
+
+    if (!updatedUser) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    user.favourites = user.favourites.filter(
-      (bookId) => bookId.toString() !== req.params.id
-    );
-
-    await user.save();
-
-    res.status(200).json({
-      message: "Book removed from favorites"
-    });
-
+    res.status(200).json({ message: "Book removed from favorites" });
   } catch (error) {
-    res.status(500).json({
-      message: "Server error"
-    });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -382,10 +518,10 @@ router.delete("/books/:id/favorite", authentication, async (req, res) => {
 // GET USER'S FAVORITE BOOKS
 router.get("/user/favorites", authentication, async (req, res) => {
   try {
-    const userId = req.user._id || req.user.id;
+    const userId = getCurrentUserId(req);
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const user = await User.findById(userId).populate("favourites");  // populate means refers to whole data from books
-
+    const user = await User.findById(userId).populate("favourites"); // populate means refers to whole data from books
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }

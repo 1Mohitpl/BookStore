@@ -1,53 +1,95 @@
 const express = require("express");
 const router = express.Router();
-const { authentication } = require("../Middleware/userauth");
+const { authentication, requireAdmin, getCurrentUserId } = require("../Middleware/userauth");
+const mongoose = require("mongoose");
 const Order = require("../Models/Order");
 const Cart = require("../Models/Cart");
+const Coupon = require("../Models/Coupon");
 const User = require("../Models/User");
 const Book = require("../Models/Book");
 
+const VALID_STATUSES = ["Order Placed", "Out for Delivery", "Delivered", "Cancelled"];
+
+const buildOrderDto = (order) => ({
+  orderId: order._id,
+  itemCount: order.items.length,
+  totalPrice: order.totalPrice,
+  discountApplied: order.discountApplied,
+  couponCode: order.couponCode,
+  status: order.status,
+  createdAt: order.createdAt
+});
+
+const resolveCoupon = async (couponCode, cartTotal) => {
+  if (!couponCode) return { couponCode: null, discount: 0 };
+
+  const normalizedCoupon = couponCode.toUpperCase().trim();
+  const couponDoc = await Coupon.findOne({ code: normalizedCoupon, isActive: true });
+  if (!couponDoc) throw { status: 404, message: "Coupon not found" };
+  if (couponDoc.expiresAt < new Date()) throw { status: 400, message: "Coupon has expired" };
+  if (cartTotal < couponDoc.minCartValue) throw { status: 400, message: `Minimum cart value for coupon is ${couponDoc.minCartValue}` };
+
+  let discount = couponDoc.discountType === "percentage"
+    ? (cartTotal * couponDoc.discountValue) / 100
+    : couponDoc.discountValue;
+
+  if (discount > cartTotal) discount = cartTotal;
+  return { couponCode: couponDoc.code, discount: Number(discount.toFixed(2)) };
+};
+
 // CREATE ORDER FROM CART
 router.post("/order", authentication, async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
-    const userId = req.user._id || req.user.id;
-    const { address } = req.body;
+    const userId = getCurrentUserId(req);
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
+    const { address, coupon } = req.body;
     if (!address) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Address is required" });
     }
 
-    // Get user's cart
-    const cart = await Cart.findOne({ user: userId }).populate("items.book");
-
+    const cart = await Cart.findOne({ user: userId }).populate("items.book").session(session);
     if (!cart || cart.items.length === 0) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Cart is empty" });
     }
 
-    // Create order
+    const { couponCode, discount } = await resolveCoupon(coupon, cart.totalPrice);
+    const payableTotal = Number((cart.totalPrice - discount).toFixed(2));
+
     const order = new Order({
       user: userId,
       items: cart.items,
-      totalPrice: cart.totalPrice,
-      address: address,
-      status: "Order Placed"
+      totalPrice: payableTotal,
+      address,
+      status: "Order Placed",
+      couponCode,
+      discountApplied: discount
     });
 
-    await order.save();
+    await order.save({ session });
+    await Cart.findOneAndDelete({ user: userId }).session(session);
 
-    // Clear cart after order
-    await Cart.findOneAndDelete({ user: userId });
+    await session.commitTransaction();
+    session.endSession();
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Order created successfully",
-      order: {
-        orderId: order._id,
-        itemCount: order.items.length,
-        totalPrice: order.totalPrice,
-        status: order.status
-      }
+      order: buildOrderDto(order)
     });
   } catch (error) {
-    console.error(error);
+    await session.abortTransaction();
+    session.endSession();
+
+    console.error("Order creation failed:", error);
+    if (error && error.status) {
+      return res.status(error.status).json({ message: error.message });
+    }
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -55,7 +97,7 @@ router.post("/order", authentication, async (req, res) => {
 // GET ALL ORDERS FOR LOGGED-IN USER
 router.get("/orders", authentication, async (req, res) => {
   try {
-    const userId = req.user._id || req.user.id;
+    const userId = getCurrentUserId(req);
 
     const orders = await Order.find({ user: userId })
       .populate("items.book")
@@ -71,7 +113,7 @@ router.get("/orders", authentication, async (req, res) => {
     res.status(200).json({
       message: "Orders fetched successfully",
       orderCount: orders.length,
-      orders: orders
+      orders: orders.map(buildOrderDto)
     });
   } catch (error) {
     console.error(error);
@@ -83,7 +125,7 @@ router.get("/orders", authentication, async (req, res) => {
 router.get("/order/:orderId", authentication, async (req, res) => {
   try {
     const { orderId } = req.params;
-    const userId = req.user._id || req.user.id;
+    const userId = getCurrentUserId(req);
 
     const order = await Order.findById(orderId)
       .populate("items.book")
@@ -100,7 +142,7 @@ router.get("/order/:orderId", authentication, async (req, res) => {
 
     res.status(200).json({
       message: "Order fetched successfully",
-      order: order
+      order: buildOrderDto(order)
     });
   } catch (error) {
     console.error(error);
@@ -109,24 +151,16 @@ router.get("/order/:orderId", authentication, async (req, res) => {
 });
 
 // UPDATE ORDER STATUS (Admin only)
-router.put("/order/:orderId/status", authentication, async (req, res) => {
+router.put("/order/:orderId/status", authentication, requireAdmin, async (req, res) => {
   try {
     const { orderId } = req.params;
     const { status } = req.body;
-    const userId = req.user._id || req.user.id;
-
-    // Check if user is admin
-    const user = await User.findById(userId);
-    if (!user || user.role !== "admin") {
-      return res.status(403).json({ message: "Only admin can update order status" });
-    }
 
     if (!status) {
       return res.status(400).json({ message: "Status is required" });
     }
 
-    const validStatuses = ["Order Placed", "Out for Delivery", "Delivered", "Cancelled"];
-    if (!validStatuses.includes(status)) {
+    if (!VALID_STATUSES.includes(status)) {
       return res.status(400).json({ message: "Invalid status" });
     }
 
@@ -154,7 +188,7 @@ router.put("/order/:orderId/status", authentication, async (req, res) => {
 router.put("/order/:orderId/cancel", authentication, async (req, res) => {
   try {
     const { orderId } = req.params;
-    const userId = req.user._id || req.user.id;
+    const userId = getCurrentUserId(req);
 
     const order = await Order.findById(orderId);
 
@@ -177,7 +211,7 @@ router.put("/order/:orderId/cancel", authentication, async (req, res) => {
 
     res.status(200).json({
       message: "Order cancelled successfully",
-      order: order
+      order: buildOrderDto(order)
     });
   } catch (error) {
     console.error(error);
@@ -186,14 +220,8 @@ router.put("/order/:orderId/cancel", authentication, async (req, res) => {
 });
 
 // GET ALL ORDERS (Admin only)
-router.get("/admin/orders", authentication, async (req, res) => {
+router.get("/admin/orders", authentication, requireAdmin, async (req, res) => {
   try {
-    const userId = req.user._id || req.user.id;
-
-    const user = await User.findById(userId);
-    if (!user || user.role !== "admin") {
-      return res.status(403).json({ message: "Only admin can view all orders" });
-    }
 
     const orders = await Order.find({})
       .populate("items.book")
@@ -203,7 +231,7 @@ router.get("/admin/orders", authentication, async (req, res) => {
     res.status(200).json({
       message: "All orders fetched successfully",
       totalOrders: orders.length,
-      orders: orders
+      orders: orders.map(buildOrderDto)
     });
   } catch (error) {
     console.error(error);

@@ -57,10 +57,26 @@ const userModel = new mongoose.Schema(
       },
     ],
 
+    wishlist: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Book"
+      }
+    ],
+    recentlyViewed: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Book"
+      }
+    ],
+    loyaltyPoints: {
+      type: Number,
+      default: 0
+    },
     Orderbook: [
       {
         type: mongoose.Types.ObjectId,
-        ref: "orderbooks",
+        ref: "Order"
       },
     ],
   },

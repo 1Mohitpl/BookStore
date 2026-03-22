@@ -17,6 +17,11 @@ const Book = new mongoose.Schema(
     price:    { type: Number, required: true },
     desc:     { type: String, required: true },
     language: { type: String, required: true },
+    category: { type: String, required: true },
+    tags: [{ type: String }],
+    salePrice: { type: Number },
+    saleStart: { type: Date },
+    saleEnd: { type: Date },
 
     averageRating: { type: Number, default: 0 },
     reviews:  [reviewSchema],

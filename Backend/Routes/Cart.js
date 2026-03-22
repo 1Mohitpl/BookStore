@@ -8,7 +8,7 @@ const Book = require("../Models/Book");
 router.post("/cart", authentication, async (req, res) => {
   try {
     const { bookId, quantity } = req.body;
-    const userId = req.user._id || req.user.id;
+    const userId = require("../Middleware/userauth").getCurrentUserId(req);
 
     if (!bookId) {
       return res.status(400).json({ message: "Book ID is required" });

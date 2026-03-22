@@ -9,6 +9,7 @@ const { siginupRouter, loginRouter, alluser, addBookrouter, updatebookrouter, de
 const bookRoutes = require("./Routes/book");
 const cartRoutes = require("./Routes/Cart");
 const orderRoutes = require("./Routes/Order");
+const couponRoutes = require("./Routes/coupon");
 app.use(express.json());
 
 app.get("/", (req, res) => {
@@ -22,6 +23,7 @@ app.use("/", alluser);
 app.use("/", bookRoutes);
 app.use("/", cartRoutes);
 app.use("/", orderRoutes);
+app.use("/", couponRoutes);
 //connections
 connectDB()
     .then(() => {

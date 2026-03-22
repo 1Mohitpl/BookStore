@@ -33,6 +33,15 @@ const OrderSchema = new mongoose.Schema(
       type: String,
       required: true
     },
+    couponCode: {
+      type: String,
+      default: null
+    },
+    discountApplied: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
     status: {
       type: String,
       default: "Order Placed",
