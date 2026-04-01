@@ -15,27 +15,32 @@ React-based Single Page Application for a BookStore with comprehensive e-commerc
 ## 🚀 Getting Started
 
 ### Prerequisites
+
 - Node.js (v14 or higher)
 - npm or yarn
 
 ### Installation
 
 1. Navigate to the frontend directory:
+
 ```bash
 cd Frontend
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
 
 3. Create a `.env` file based on `.env.example`:
+
 ```bash
 cp .env.example .env
 ```
 
 4. Update the API URL in `.env` if your backend is running on a different port:
+
 ```env
 REACT_APP_API_URL=http://localhost:8000
 ```
@@ -43,6 +48,7 @@ REACT_APP_API_URL=http://localhost:8000
 ### Running the Application
 
 Start the development server:
+
 ```bash
 npm start
 ```
@@ -52,6 +58,7 @@ The app will open in your browser at `http://localhost:3000`
 ### Building for Production
 
 Create an optimized production build:
+
 ```bash
 npm run build
 ```
@@ -92,17 +99,17 @@ public/
 
 ## 🔑 Key Pages
 
-| Page | Route | Auth Required | Description |
-|------|-------|---------------|-------------|
-| Home | `/` | No | Landing page with features |
-| Login | `/login` | No | User login |
-| Signup | `/signup` | No | User registration |
-| Books | `/books` | Yes | Browse and search books |
-| Cart | `/cart` | Yes | View shopping cart |
-| Checkout | `/checkout` | Yes | Place order |
-| Orders | `/orders` | Yes | View order history |
-| Profile | `/profile` | Yes | User profile and settings |
-| Admin | `/admin` | Yes (Admin) | Manage books |
+| Page     | Route       | Auth Required | Description                |
+| -------- | ----------- | ------------- | -------------------------- |
+| Home     | `/`         | No            | Landing page with features |
+| Login    | `/login`    | No            | User login                 |
+| Signup   | `/signup`   | No            | User registration          |
+| Books    | `/books`    | Yes           | Browse and search books    |
+| Cart     | `/cart`     | Yes           | View shopping cart         |
+| Checkout | `/checkout` | Yes           | Place order                |
+| Orders   | `/orders`   | Yes           | View order history         |
+| Profile  | `/profile`  | Yes           | User profile and settings  |
+| Admin    | `/admin`    | Yes (Admin)   | Manage books               |
 
 ## 🛠️ Technology Stack
 
@@ -132,6 +139,7 @@ The frontend integrates with the backend through `src/services/api.js`:
 ## 📦 Dependencies
 
 See `package.json` for complete list of dependencies:
+
 - `react` - UI framework
 - `react-router-dom` - Routing
 - `axios` - HTTP client
@@ -140,18 +148,21 @@ See `package.json` for complete list of dependencies:
 ## 🎯 Usage Examples
 
 ### Adding a Book to Cart
+
 ```javascript
 const { addToCart } = useCart();
 await addToCart(bookId, quantity);
 ```
 
 ### Applying a Coupon
+
 ```javascript
 const { applyCoupon } = useCart();
 await applyCoupon(couponCode);
 ```
 
 ### Fetching Books
+
 ```javascript
 const { getAllBooks } = bookService;
 const response = await getAllBooks();
